@@ -76,30 +76,54 @@ association DSD between
     Role[*] role d_r2
 end
 
+-- New: Prerequisite Role Association
+association PrerequisiteRole between
+    Role[*] role role
+    Role[*] role prereq
+end
+
+-- New: Prerequisite Permission Association
+association PrerequisitePerm between
+    Permission[*] role perm
+    Permission[*] role prereq
+end
+
 constraints
 
 context User
     -- SSD: conflicting roles cannot be assigned to the same user
     inv SSD_Role:
         not self.roles->exists(r1, r2 |
-            SSD.allInstances()->exists(link | -- ERROR HERE
-                link.s_r1 = r1 and link.s_r2 = r2))
+            SSD.allInstances()->exists(link |
+                (link.s_r1 = r1 and link.s_r2 = r2) or
+                (link.s_r1 = r2 and link.s_r2 = r1)
+            )
+        )
 
 context Session
     -- DSD: conflicting roles cannot be activated in the same session
     inv DSD_Role:
         not self.roles->exists(r1, r2 |
             DSD.allInstances()->exists(link |
-            (link.d_r1 = r1 and link.d_r2 = r2)
-            or
-            (link.d_r1 = r2 and link.d_r2 = r1)
+                (link.d_r1 = r1 and link.d_r2 = r2) or
+                (link.d_r1 = r2 and link.d_r2 = r1)
             )
-    )
+        )
 
--- TODO constraint still needed: prerequisite roles (pg 5)
+context Role
+    -- Prerequisite-Role: A user can be assigned to a role only if already assigned to its prerequisites
+    inv PrerequisiteRole:
+        self.users->forAll(u |
+            self.prereq->forAll(pr | u.roles->includes(pr))
+        )
+
+context Role
+    -- Prerequisite-Permission: A role can be assigned a permission only if it already has the permission’s prerequisites
+    inv PrerequisitePerm:
+        self.permissions->forAll(p |
+            p.prereq->forAll(pr | self.permissions->includes(pr))
+        )
 
 -- TODO constraint still needed: cardinality constraints (pg 6)
 
 -- TODO validate that invariants work as intended when actual objects are created
-
-
